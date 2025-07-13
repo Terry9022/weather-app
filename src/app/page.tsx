@@ -4,10 +4,14 @@ import Container from "@/components/Container";
 import Navbar from "@/components/Navbar";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
-import { format, parseISO } from "date-fns";
+import { format, fromUnixTime, parseISO } from "date-fns";
 import { convertKelvinToCelsius } from "./utils/convertKelvinToCelsius";
 import WeatherIcon from "@/components/WeatherIcon";
 import { getDayOrNightIcon } from "./utils/getDayOrNightIcon";
+import WeatherDetails from "@/components/WeatherDetails";
+import { metersToKilometers } from "./utils/metersToKilometers";
+import convertWindSpeed from "./utils/convertWindSpeed";
+import ForecastWeatherDetail from "@/components/ForecastWeatherDetail";
 
 interface WeatherDetail {
   dt: number;
@@ -78,6 +82,22 @@ export default function Home() {
 
   console.log("data", data);
 
+  const uniqueDates = [
+    ...new Set(
+      data?.list.map(
+        (entry) => new Date(entry.dt * 1000).toISOString().split("T")[0]
+      )
+    ),
+  ];
+
+  const firstDataForEachDate = uniqueDates.map((date) => {
+    return data?.list.find((entry) => {
+      const entryDate = new Date(entry.dt * 1000).toISOString().split("T")[0];
+      const entryTime = new Date(entry.dt * 1000).getHours();
+      return entryDate === date && entryTime >= 6;
+    });
+  });
+
   if (isPending)
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -143,9 +163,55 @@ export default function Home() {
               </div>
             </Container>
           </div>
+          <div className="flex gap-4">
+            {/* left side */}
+            <Container className="w-fit justify-center flex-col px-4 items-center">
+              <p className="capitalize text-center">
+                {firstData?.weather[0].description}
+              </p>
+              <WeatherIcon
+                iconName={getDayOrNightIcon(
+                  firstData?.weather[0].icon ?? "",
+                  firstData?.dt_txt ?? ""
+                )}
+              />
+            </Container>
+            {/* right side */}
+            <Container className="bg-yellow-300/80 px-6 gap-4 justify-between overflow-x-auto">
+              <WeatherDetails
+                visibility={metersToKilometers(firstData?.visibility ?? 10000)}
+                airPressure={`${firstData?.main.pressure} hPa`}
+                humidity={`${firstData?.main.humidity}%`}
+                sunrise={format(fromUnixTime(data?.city.sunrise ?? 0), "H:mm")}
+                sunset={format(fromUnixTime(data?.city.sunset ?? 0), "H:mm")}
+                windSpeed={convertWindSpeed(firstData?.wind.speed ?? 0)}
+              />
+            </Container>
+          </div>
         </section>
-        {/* 7 day forecase data */}
-        <section></section>
+        {/* 7 day forecast data */}
+        <section className="flex w-full flex-col gap-4">
+          <p className="text-2xl">Forecast (7 days)</p>
+          {firstDataForEachDate.map((d, i) => (
+            <ForecastWeatherDetail
+              key={i}
+              description={d?.weather[0].description ?? ""}
+              weatherIcon={d?.weather[0].icon ?? "01d"}
+              date={format(parseISO(d?.dt_txt ?? ""), "dd.MM")}
+              day={format(parseISO(d?.dt_txt ?? ""), "EEEE")}
+              feels_like={d?.main.feels_like ?? 0}
+              temp={d?.main.temp ?? 0}
+              temp_min={d?.main.temp_min ?? 0}
+              temp_max={d?.main.temp_max ?? 0}
+              airPressure={`${d?.main.pressure ?? 0} hPa`}
+              humidity={`${d?.main.humidity ?? 0}%`}
+              sunrise={format(fromUnixTime(data?.city.sunrise ?? 0), "H:mm")}
+              sunset={format(fromUnixTime(data?.city.sunset ?? 0), "H:mm")}
+              visibility={`${metersToKilometers(d?.visibility ?? 10000)}`}
+              windSpeed={convertWindSpeed(d?.wind.speed ?? 0)}
+            />
+          ))}
+        </section>
       </main>
     </div>
   );
